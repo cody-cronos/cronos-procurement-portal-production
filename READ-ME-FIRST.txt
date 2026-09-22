@@ -1,35 +1,27 @@
-ATLAS SHIPMENT EDIT UPDATE — September 22, 2026
+SHIPMENT EDIT: CORRECTED DEPLOYMENT UPLOAD
 
-This update adds Edit Shipment to each row in Shipment History for Admin and Procurement Team users. You can correct the carrier, tracking number, actual ship date, expected delivery date, packing slip number, and notes. Editing works when all ordered units have shipped and when delivery has already been confirmed.
+Use this package instead of the previous shipment ZIP.
 
-HOW TO APPLY
-1. Open GITHUB-UPLOAD in this package.
-2. Copy its files into the existing app repository at the same relative paths, replacing those specific files. Keep the rest of the repository intact. This is an update package, not a standalone app.
-3. Commit/upload the changes and deploy through the app's existing deployment workflow.
-4. Wait for deployment to succeed, then refresh the app.
+1. Extract ATLAS-SHIPMENT-EDIT-DEPLOYMENT-FIX-2026-09-22.zip. It contains ONE file: atlas-managed-funds-release.json.
+2. Open https://github.com/codyh918/cronos-procurement-portal/upload/main
+3. Upload the extracted atlas-managed-funds-release.json directly at the repository root, replacing the existing file of the same name. Do not upload a wrapper folder or the ZIP.
+4. Commit the change to main, then wait for the connected Railway deployment to finish successfully. If automatic deployment is disabled, deploy this new commit in Railway.
+5. Refresh Atlas, click View Shipments, then Edit Shipment on the shipment history row.
 
-Production files:
-  src/components/MaterialTrackingPanel.vue
-  src/services/materialTracking.ts
-Regression checks:
-  server/tests/material-tracking.test.mjs
-  scripts/tests/shipment-edit-browser.mjs
+The Edit Shipment action works for delivered shipments as well as shipments still in transit. Admin and Procurement Team users can change carrier, tracking number, ship date, expected delivery, packing slip and notes. Quantities and delivery confirmations remain intact.
 
-HOW TO CORRECT R&L TO FEDEX
-1. Open the project's Material Shipments section.
-2. Click View Shipments on the PFD-45A line.
-3. In Shipment History, click Edit Shipment beside the existing shipment.
-4. Select FedEx and correct the tracking number if necessary.
-5. Click Save Changes.
+WHAT WAS VERIFIED
+The upload in commit 91c2a921e1dbc2cf93bf78777b185eb194b039d5 placed the shipment files under GITHUB-UPLOAD/src, outside the app's source directory. The live bundle index-Cor7vFTQ.js contained the old shipment controls and no Edit Shipment button.
 
-The shipment keeps its original ID, quantities, creator, and delivery confirmations. Activity records who edited it and the before/after values. If a shipment includes multiple MEL lines, the editor shows all affected items and applies shared details to all of them. Optional details can be cleared. Reusing another shipment's tracking number on the same purchase order is rejected.
+The repository builds using atlas-prepare-release.mjs and atlas-managed-funds-release.json. The corrected manifest embeds the tested shipment changes in the two correct source paths and maintains all 46 strict source-path checks. It also restores the localProjects.ts payload to its ALREADY RECORDED SHA-256 (3a85a93c889af668a7417533fcd28709408d5bd620b5eec11118bba116daf634), fixing a corrupted regular expression that made the existing manifest fail checksum validation. The other 85 embedded files are unchanged.
 
-This package contains no database migrations, credentials, or production shipment data. Creating this update does not change the live shipment automatically; deploy the update and edit the shipment in the app.
+VALIDATION
+On a downloaded copy of that exact repository commit:
+- All 88 manifest file checksums pass.
+- Release preparation installs successfully; a second --check finds zero pending files or conflicts.
+- Production build passes and includes Edit Shipment and Shipment edited.
+- All 27 material tracking regression tests pass.
+- The shipment editor and service match the files already tested in 8 local browser scenarios.
+- Repository-wide type checking has pre-existing errors in misplaced duplicate source trees and src/lib/project-api-client.ts. These are outside this shipment fix; comparison details are in the local validation report.
 
-VALIDATION COMMANDS
-  npm run type-check
-  node --experimental-strip-types --test server/tests/material-tracking.test.mjs
-  npm run build
-
-The browser regression uses the existing project-records PGlite fixture and a local Vite server on port 4216. It intercepts persistence requests, so it does not access a live account. Use Node 22. It requires Playwright; set ATLAS_PLAYWRIGHT_MODULE to an existing Playwright index.mjs when it is not installed in the repository, and optionally ATLAS_BROWSER_PATH to a Chromium-compatible browser executable.
-  node --experimental-strip-types scripts/tests/shipment-edit-browser.mjs
+No credentials, database migrations or production record changes are included. This upload must be committed and deployed before the live site changes. The current GitHub login has read-only access to codyh918/cronos-procurement-portal, so this package has not been pushed automatically.
