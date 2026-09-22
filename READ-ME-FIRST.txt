@@ -1,0 +1,35 @@
+ATLAS SHIPMENT EDIT UPDATE — September 22, 2026
+
+This update adds Edit Shipment to each row in Shipment History for Admin and Procurement Team users. You can correct the carrier, tracking number, actual ship date, expected delivery date, packing slip number, and notes. Editing works when all ordered units have shipped and when delivery has already been confirmed.
+
+HOW TO APPLY
+1. Open GITHUB-UPLOAD in this package.
+2. Copy its files into the existing app repository at the same relative paths, replacing those specific files. Keep the rest of the repository intact. This is an update package, not a standalone app.
+3. Commit/upload the changes and deploy through the app's existing deployment workflow.
+4. Wait for deployment to succeed, then refresh the app.
+
+Production files:
+  src/components/MaterialTrackingPanel.vue
+  src/services/materialTracking.ts
+Regression checks:
+  server/tests/material-tracking.test.mjs
+  scripts/tests/shipment-edit-browser.mjs
+
+HOW TO CORRECT R&L TO FEDEX
+1. Open the project's Material Shipments section.
+2. Click View Shipments on the PFD-45A line.
+3. In Shipment History, click Edit Shipment beside the existing shipment.
+4. Select FedEx and correct the tracking number if necessary.
+5. Click Save Changes.
+
+The shipment keeps its original ID, quantities, creator, and delivery confirmations. Activity records who edited it and the before/after values. If a shipment includes multiple MEL lines, the editor shows all affected items and applies shared details to all of them. Optional details can be cleared. Reusing another shipment's tracking number on the same purchase order is rejected.
+
+This package contains no database migrations, credentials, or production shipment data. Creating this update does not change the live shipment automatically; deploy the update and edit the shipment in the app.
+
+VALIDATION COMMANDS
+  npm run type-check
+  node --experimental-strip-types --test server/tests/material-tracking.test.mjs
+  npm run build
+
+The browser regression uses the existing project-records PGlite fixture and a local Vite server on port 4216. It intercepts persistence requests, so it does not access a live account. Use Node 22. It requires Playwright; set ATLAS_PLAYWRIGHT_MODULE to an existing Playwright index.mjs when it is not installed in the repository, and optionally ATLAS_BROWSER_PATH to a Chromium-compatible browser executable.
+  node --experimental-strip-types scripts/tests/shipment-edit-browser.mjs

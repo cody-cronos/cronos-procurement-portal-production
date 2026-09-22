@@ -1,0 +1,11 @@
+Validation completed September 22, 2026.
+
+PASS: npm run type-check
+PASS: node --experimental-strip-types --test server/tests/material-tracking.test.mjs (27 tests)
+PASS: npm run build
+PASS: local browser regression (8 scenarios, no page errors)
+PASS: visual inspection of editor and shipment history screenshots
+
+Browser checks used isolated fixture records and intercepted persistence requests; live production was not modified or tested. Build and browser tests needed an unsandboxed local run because esbuild could not read workspace parent directories inside the sandbox.
+
+Packaged source files match the validated working files byte for byte.

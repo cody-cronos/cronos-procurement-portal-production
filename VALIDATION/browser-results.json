@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "fully shipped item opens with all details prefilled and quantity read-only",
+    "cancel leaves the saved shipment unchanged",
+    "rejected save keeps the editor open and retains corrections for retry",
+    "confirmed save updates the same shipment with quantities and history intact",
+    "reload shows corrected FedEx tracking and the shipment edit activity",
+    "add shipment opens a fresh form after editing",
+    "shared delivered shipment shows scope and preserves delivery confirmations",
+    "Engineering role cannot see the Edit Shipment action"
+  ],
+  "errors": []
+}
