@@ -1,0 +1,20 @@
+VALIDATION — SEPTEMBER 25, 2026
+
+Workspace type checking passed.
+Full server suite: 230 tests passed before the final scope-specific addition; the final focused suite of 36 tests also passed.
+Document validation passed.
+Production build passed in the workspace and after installing the package into the previously downloaded repository.
+All 92 release files installed without conflicts.
+Eight browser checks passed against the installed package with an isolated fixture database and zero browser errors:
+1. Vendor confirmation saves, rejects failed writes, and retries.
+2. Shipment reversal persists with original history and vendor acknowledgment intact.
+3. Reversing one line preserves other lines in shared shipments.
+4. A project note can be flagged as a task assigned to Nick; failed saves retain the form.
+5. Assigned work appears on Nick's dashboard and completion persists.
+6. Completed tasks reload and can be reopened from the project.
+7. Read-only tracking roles cannot change vendor confirmation or reverse shipments.
+8. The dashboard link opens the actual project's Notes & Tasks section; the narrow layout was visually checked.
+
+This release retains the Managed Funds interface from the previous upload, applying the new notes/tasks and shipment handling to that version. The local workspace's additional report components remain intact.
+
+No production database or deployment was changed.

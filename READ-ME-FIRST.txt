@@ -1,11 +1,14 @@
-OPPORTUNITY RETURN NAVIGATION
+ATLAS PROJECT WORK UPDATE — SEPTEMBER 25, 2026
 
-Extract the ZIP and upload its single atlas-managed-funds-release.json file at the root of https://github.com/codyh918/cronos-procurement-portal, replacing the existing file. Upload the actual file rather than pasting its contents. Commit and wait for the connected deployment to succeed, then refresh Atlas.
+Included:
+- Vendor Order Number on each material-tracking line, with vendor receipt confirmation, saving, corrections and history. The PO detail page also labels this confirmation.
+- Notes & Tasks at the project/opportunity level, including Managed Funds projects. Notes keep authorship; Flag as Task creates assigned work with optional due date and priority. Users can edit, complete and reopen tasks. Assigned work appears on their dashboard with a link back to the project.
+- Reverse Shipment reverses an entire shipment. Mark Not Shipped reverses only one line, preserving other lines in shared shipments. The reason, author and original shipment remain in history. Quantities, delivery confirmations, active tracking and statuses are recalculated.
+- Previous release contents, including shipment editing and opportunity return navigation, are retained.
 
-Behavior: the existing in-app Back control on a purchase order returns to its parent project's opportunity overview by default. The existing quote return control uses the same simple Back label and returns to the parent opportunity. No separate Back to Opportunity button is added. The global repositories remain accessible through the existing main navigation. A missing PO with no known parent still has its repository recovery link.
+UPLOAD
+Extract this ZIP. Upload the single atlas-managed-funds-release.json file to the ROOT of the existing codyh918/cronos-procurement-portal repository, replacing the existing file. Commit it and wait for the connected deployment to finish, then refresh Atlas. The repository must retain its existing atlas-prepare-release.mjs build hook. Upload the actual JSON file; do not paste its contents or upload the enclosing folder.
 
-The release preserves the shipment editor and all prior release contents. It also restores the localProjects.ts payload to its already recorded checksum where the remote copy had the previously identified corrupted text. All strict source checks are retained.
+No new SQL migration is required for these features; they use the existing confirmed project-record save workflow. This assumes the prior project-record and Managed Funds migrations are already installed.
 
-Validation: five real browser navigation checks passed (two parent projects, quote editing, new quote, and a legacy PO-number URL), no browser page errors, workspace type checking passed, and the repository's full release preparation plus production build passed.
-
-This package is prepared locally; it has not been uploaded or deployed. The existing GitHub login has read-only access to the destination repository.
+This package is prepared and tested locally. It has not been uploaded or deployed.
