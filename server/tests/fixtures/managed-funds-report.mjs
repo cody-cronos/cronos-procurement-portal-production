@@ -1,0 +1,17 @@
+export function customerReportFixture() {
+ const action = (id, number, type) => ({id,number,projectId:'report-project',type,chargeType:type==='Purchase Material'?'Material':'Services',description:type==='Purchase Material'?'Network equipment':'Installation services',requestDate:'2026-09-14',requestor:'Customer',ownerId:'internal-owner',ownerName:'Internal owner',status:'Approved',authorizedAmount:200000,estimatedCost:98765,readyToBill:true,vendors:['PRIVATE_VENDOR_NAME'],quoteIds:id==='material'?['quote-approved','quote-draft']:[],poIds:id==='material'?['po-a','po-b']:[],notes:'PRIVATE_INTERNAL_NOTES',createdAt:'2026-09-14T12:00:00Z'})
+ const tx = (id, data) => ({id,projectId:'report-project',occurredAt:'2026-09-14T12:00:00Z',userId:'internal',userName:'Internal Finance',authorized:0,committed:0,actualCost:0,billAmount:0,invoiced:0,paid:0,...data})
+ const approved={id:'quote-approved',actionId:'material',quoteNumber:'MF-DEMO-Q1',projectId:'report-project',projectNumber:'MF-DEMO',projectName:'Demonstration Managed Funds',customer:'Example Customer',quoteName:'Network equipment',status:'Customer Approved',createdAt:'2026-09-14T12:00:00Z',shippingCost:50,contractFeeEnabled:true,lines:[{id:'line1',clin:'001',partNumber:'SW-24P',manufacturer:'Example Network',description:'24-port managed network switch',quantity:10,unitCost:100,markupPercent:20,approved:true,vendor:'PRIVATE_VENDOR_NAME',quoteNumber:'PRIVATE_VENDOR_REFERENCE',leadTime:'2 weeks'}]}
+ const project={id:'report-project',projectNumber:'MF-DEMO',projectName:'Demonstration Managed Funds',customer:'Example Customer',projectType:'Managed Funds',checkbookStartingBalance:10000,quotes:[approved,{...structuredClone(approved),id:'quote-draft',quoteNumber:'UNAPPROVED-ALTERNATIVE',status:'Quoted'}],quoteLines:approved.lines,purchaseOrders:[{id:'po-a',actionId:'material',poNumber:'PO-A',quoteId:approved.id,lines:[{id:'po-line1',quantityOrdered:5,unitCost:100}],totalCost:500},{id:'po-b',actionId:'material',poNumber:'PO-B',quoteId:approved.id,lines:[{id:'po-line1',quantityOrdered:5,unitCost:100}],totalCost:500}],inventory:[],materialShipments:[],materialTrackingActivity:[]}
+ const state={schemaVersion:1,projectId:project.id,revision:7,nextAction:4,nextInvoice:2,originalFunding:1000000,actions:[action('material','MF-001','Purchase Material'),action('expense','MF-002','Direct Expense / Pass-Through'),action('credit','MF-003','Credit / Adjustment')],transactions:[
+ tx('funding',{kind:'Original Funding',authorized:1000000}),tx('modification',{kind:'Funding Modification',authorized:100000}),
+ tx('material-total',{kind:'Quote Approval',actionId:'material',committed:140607,billAmount:140607}),
+ tx('expense-total',{kind:'Action Created',actionId:'expense',committed:20000,billAmount:20000}),
+ tx('material-cost',{kind:'Expense',actionId:'material',actualCost:100000,customerBillAmount:140607,description:'PRIVATE_VENDOR_INVOICE_DETAILS',reference:'PRIVATE_VENDOR_REFERENCE'}),
+ tx('expense-cost',{kind:'Expense',actionId:'expense',actualCost:15000,customerBillAmount:17500,description:'Customer installation service',reference:'SERVICE-001'}),
+ tx('invoice',{kind:'Invoice Issued',actionId:'material',invoiceId:'i1',invoiced:100000}),
+ tx('payment',{kind:'Payment',actionId:'material',invoiceId:'i1',paid:50000}),
+ tx('credit-tx',{kind:'Customer Credit',actionId:'material',adjustmentActionId:'credit',invoiceId:'i1',invoiced:-1000}),
+ ],invoices:[],documents:[],audit:[],review:[],commands:[]}
+ return {project,state,actor:{id:'admin',name:'Demo Admin',role:'admin'}}
+}
