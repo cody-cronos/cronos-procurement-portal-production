@@ -6,18 +6,6 @@ const text = (value: string, style = 39): WorkbookCell => ({ value, style })
 const money = (value: number, style = 41): WorkbookCell => ({ value: value / 100, style })
 const header = (labels: string[]) => labels.map(value => text(value, 59))
 const dateSerial = (date: string) => Math.floor(Date.parse(date.slice(0, 10) + 'T00:00:00Z') / 86400000) + 25569
-const escaped = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-function purchaseDescription(description: string, references: string) {
-  let result = description
-  for (const reference of references.split('\n').filter(Boolean)) {
-    result = result.replace(new RegExp(`(?:\\s+[-–—|,;:]\\s*|\\s+PO\\s*(?:#|No\\.?|Number)?\\s*:?[\\s]*|^)${escaped(reference)}\\s*$`, 'gi'), '')
-  }
-  result = result.replace(/\s*[-–—|,;:/]+\s*$/g, '').replace(/\s+(?:quote|purchase request|material request)$/i, '').replace(/\s+/g, ' ').trim()
-  if (!result) return 'Funded purchase'
-  // An ellipsis makes shortening explicit; never fabricate a replacement description.
-  return result.length <= 180 ? result : result.slice(0, 177).replace(/\s+\S*$/, '').trim() + '…'
-}
 
 function rowHeights(rows: WorkbookCell[][], widths: number[]) {
   return Object.fromEntries(rows.map((row, index) => [index + 7, Math.min(409, Math.max(28, ...row.map((cell, col) => {
@@ -43,7 +31,7 @@ export function managedFundsFinancialSheets(report: ManagedFundsFinancialReport)
     const style = index % 2 ? 40 : 39
     const status = action.status === 'Received' ? 'Processing' : action.status
     const statusStyle = status === 'Delivered' ? 64 : status === 'In Transit' ? 63 : 62
-    return [text(action.actionNumber, style), text(purchaseDescription(action.description, action.purchaseOrderNumbers), style),
+    return [text(action.actionNumber, style), text(action.description, style),
       text(action.purchaseOrderNumbers, style), text(status, statusStyle), money(action.committed, index % 2 ? 42 : 41)]
   })
   const lastAction = 6 + actions.length, totalRow = lastAction + 1

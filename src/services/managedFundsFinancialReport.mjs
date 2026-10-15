@@ -76,7 +76,9 @@ export function buildManagedFundsFinancialReport(project, state) {
     const status = action.status === 'Cancelled' || (pos.length && !activePos.length) ? 'Cancelled' : procurementStatus({ ...project, purchaseOrders: activePos }, action)
     const notes = unique(activePos.flatMap(p => [clean(p.customerUpdateNotes), ...(p.lines || []).map(l => clean(l.customerNote))]))
     if (action.status === 'Cancelled' && committed > 0) notes.push('Remaining approved commitment has not been released.')
-    register.push({ actionNumber: clean(action.number), description: clean(action.description, true) || 'Approved funded work',
+    // The purchase description is the saved ledger label, including vendor names
+    // deliberately entered there. Other report fields retain their redaction rules.
+    register.push({ actionNumber: clean(action.number), description: action.description,
       quoteNumbers: unique(quotes.map(q => clean(q.quoteNumber))).join('\n'), purchaseOrderNumbers: unique(pos.map(p => clean(p.poNumber))).join('\n'),
       status, committed, notes: notes.join('\n') })
     if (action.status === 'Cancelled' || committed === 0) continue

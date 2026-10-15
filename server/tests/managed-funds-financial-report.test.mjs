@@ -98,18 +98,18 @@ test('status follows actual PO lines and shipments; cancelled POs do not mask ac
   project.purchaseOrders=[]
   assert.equal(build(project,state).actions[0].status,'Processing')
 })
-test('customer DTO uses an exact allowlist and sanitizes embedded supplier identities while retaining product manufacturers', () => {
+test('customer DTO preserves ledger descriptions and sanitizes other fields while retaining product manufacturers', () => {
   const {project,state}=fixture()
   state.actions[0].description='Example Network switch from PRIVATE_VENDOR_NAME'
   project.purchaseOrders[0].poNumber='PO-A-PRIVATE_VENDOR_NAME'
   project.purchaseOrders[0].customerUpdateNotes='Delivery expected next week. Internal margin 25%. Invoice paid.'
   project.quotes[0].lines[0].description='Example Network switch. Vendor account #1234. Price needed PO-TOTAL'
-  const r=build(project,state), encoded=JSON.stringify(r)
+  const r=build(project,state), encoded=JSON.stringify({...r,actions:r.actions.map(({description,...action})=>action)})
   assert.deepEqual(Object.keys(r),['customer','projectNumber','projectName','generatedAt','funding','actions','lines','notes'])
   assert.deepEqual(Object.keys(r.actions[0]),['actionNumber','description','quoteNumbers','purchaseOrderNumbers','status','committed','notes'])
   assert.deepEqual(Object.keys(r.lines[0]),['actionNumber','partNumber','manufacturer','description','quantity','unitPrice','extendedPrice','included'])
   for(const term of ['PRIVATE_','unitCost','actualCost','margin','markup','invoice','payment','billing','PO-TOTAL','Price needed','revision','owner','audit']) assert.ok(!encoded.toLowerCase().includes(term.toLowerCase()),term)
-  assert.match(r.actions[0].description,/Example Network/)
+  assert.equal(r.actions[0].description,state.actions[0].description)
   assert.equal(r.lines[0].manufacturer,'Example Network')
   assert.equal(r.actions[0].purchaseOrderNumbers,'PO-A\nPO-B')
 })
@@ -132,8 +132,19 @@ test('supplier spellings with spaces, hyphens, punctuation or joined words are r
   project.projectName='Customer network (MANAGED FUNDS IN QBO - private accounting name)'
   const r=build(project,state)
   assert.equal(r.actions[0].purchaseOrderNumbers,'25-100-0008\n25-100-0009')
-  assert.equal(r.actions[0].description,'Switches')
+  assert.equal(r.actions[0].description,'Switches — HomeDepot')
   assert.equal(r.projectName,'Customer network')
+})
+
+test('purchase descriptions match the saved action ledger without shortening or supplier removal', () => {
+  const {project,state}=fixture()
+  state.actions[1].vendors=['AccessNsite']
+  state.actions[1].description='AccessNsite Deposit'
+  state.actions[0].description='Network equipment purchase request — PO-A\n'+'Equipment configuration '.repeat(12)
+  const before=structuredClone(state),report=build(project,state)
+  assert.deepEqual(report.actions.map(a=>a.description),state.actions.slice(0,2).map(a=>a.description))
+  assert.equal(report.funding.committed,160607)
+  assert.deepEqual(state,before)
 })
 test('detail quantities come from linked orders, not planned quote quantities; unsupported quantities are omitted', () => {
   const {project,state}=fixture()

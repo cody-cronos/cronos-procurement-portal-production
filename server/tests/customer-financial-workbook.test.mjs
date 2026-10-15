@@ -15,6 +15,9 @@ test('actual customer exporter creates two reconciled sheets and a separate equi
   const api = await import(pathToFileURL(bundle).href)
   const { project, state } = customerReportFixture()
   state.transactions.find(t => t.id === 'expense-total').kind = 'Commitment'
+  state.actions[1].vendors = ['AccessNsite']
+  state.actions[1].description = 'AccessNsite Deposit'
+  state.actions[0].description = 'Network equipment & configuration quote — PO-A\n' + 'Approved equipment configuration '.repeat(8)
   project.purchaseOrders.forEach(po => { po.lines[0].quoteLineId = 'line1' })
   const report = api.buildManagedFundsFinancialReport(project, state)
   const original = { window: globalThis.window, document: globalThis.document }
@@ -32,6 +35,9 @@ test('actual customer exporter creates two reconciled sheets and a separate equi
     assert.equal(overview.F10.f, "'Funded Purchases'!E9")
     assert.equal(purchases.E9.f, 'ROUND(SUM(E7:E8),2)')
     assert.equal(overview.B19.v, 2)
+    assert.equal(purchases.B7.v, state.actions[0].description.trim())
+    assert.equal(purchases.B8.v, 'AccessNsite Deposit')
+    assert.equal(purchases.B8.f, undefined)
     assert.deepEqual(XLSX.utils.sheet_to_json(purchases, { header: 1 })[5], ['Action', 'Purchase Description', 'PO Number', 'Status', 'Customer Amount'])
     const zip = await JSZip.loadAsync(bytes), parts = []
     for (const file of Object.keys(zip.files).filter(p => /\.(xml|rels)$/.test(p))) parts.push(await zip.file(file).async('string'))
