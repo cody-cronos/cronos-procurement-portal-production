@@ -35,6 +35,7 @@ export type WorkbookSheet = {
   showGridLines?: boolean
   landscape?: boolean
   image?: 'cronosLogo'
+  logo?: { column: number; row: number; columns: number; width: number; height: number; offsetY?: number }
   printArea?: string
   dataBar?: { range: string; color: string; showValue?: boolean }
   fitToHeight?: number
@@ -45,9 +46,9 @@ export type WorkbookSheet = {
 async function downloadWorkbook(sheets: WorkbookSheet[], fileName: string) {
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
-  const logoBytes = null
+  const logoBytes = sheets.some(sheet => sheet.image === 'cronosLogo') ? await fetchCronosLogo() : null
 
-  zip.file('[Content_Types].xml', contentTypesXml(sheets, Boolean(logoBytes)))
+  zip.file('[Content_Types].xml', contentTypesXml(sheets))
   zip.file('_rels/.rels', rootRelsXml())
   zip.file('docProps/app.xml', appXml())
   zip.file('docProps/core.xml', coreXml())
@@ -55,9 +56,15 @@ async function downloadWorkbook(sheets: WorkbookSheet[], fileName: string) {
   zip.file('xl/_rels/workbook.xml.rels', workbookRelsXml(sheets))
   zip.file('xl/styles.xml', stylesXml())
   sheets.forEach((sheet, index) => {
-    zip.file(`xl/worksheets/sheet${index + 1}.xml`, worksheetXml(sheet, index, Boolean(logoBytes)))
-
+    zip.file(`xl/worksheets/sheet${index + 1}.xml`, worksheetXml(sheet, Boolean(logoBytes)))
+    if (sheet.image === 'cronosLogo' && logoBytes) {
+      zip.file(`xl/worksheets/_rels/sheet${index + 1}.xml.rels`, sheetDrawingRelsXml(index + 1))
+      zip.file(`xl/drawings/drawing${index + 1}.xml`, drawingXml(sheet))
+      zip.file(`xl/drawings/_rels/drawing${index + 1}.xml.rels`, drawingRelsXml())
+    }
   })
+
+  if (logoBytes) zip.file('xl/media/cronos-report-mark.png', logoBytes)
 
   const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = window.URL.createObjectURL(blob)
@@ -70,7 +77,7 @@ async function downloadWorkbook(sheets: WorkbookSheet[], fileName: string) {
   window.URL.revokeObjectURL(url)
 }
 
-function worksheetXml(sheet: WorkbookSheet, sheetIndex: number, hasLogo: boolean) {
+function worksheetXml(sheet: WorkbookSheet, hasLogo: boolean) {
   const columnXml = sheet.columnWidths?.length
     ? `<cols>${sheet.columnWidths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('')}</cols>`
     : ''
@@ -84,7 +91,7 @@ function worksheetXml(sheet: WorkbookSheet, sheetIndex: number, hasLogo: boolean
     : ''
   const autoFilterXml = sheet.autoFilter ? `<autoFilter ref="${escapeXml(sheet.autoFilter)}"/>` : ''
   const dataBarXml = sheet.dataBar ? `<conditionalFormatting sqref="${escapeXml(sheet.dataBar.range)}"><cfRule type="dataBar" priority="1"><dataBar showValue="${sheet.dataBar.showValue === false ? 0 : 1}"><cfvo type="num" val="0"/><cfvo type="num" val="1"/><color rgb="FF${escapeXml(sheet.dataBar.color)}"/></dataBar></cfRule></conditionalFormatting>` : ''
-  const drawingXml = sheetIndex === 0 && sheet.image === 'cronosLogo' && hasLogo ? '<drawing r:id="rId1"/>' : ''
+  const drawingXml = sheet.image === 'cronosLogo' && hasLogo ? '<drawing r:id="rId1"/>' : ''
   const pageSetupXml = sheet.landscape
     ? `<printOptions horizontalCentered="1"/><pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.25" footer="0.25"/><pageSetup orientation="landscape" fitToWidth="1" fitToHeight="${sheet.fitToHeight ?? 0}"/><headerFooter><oddHeader>&amp;C${escapeXml(sheet.reportTitle || 'Material Tracking Report')}</oddHeader><oddFooter>&amp;LAtlas ${escapeXml(sheet.reportTitle || 'Material Tracking')}&amp;RPage &amp;P of &amp;N</oddFooter></headerFooter>`
     : ''
@@ -149,14 +156,13 @@ function workbookRelsXml(sheets: WorkbookSheet[]) {
   return xmlHeader(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheetRels}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`)
 }
 
-function contentTypesXml(sheets: WorkbookSheet[], hasJpg = false) {
+function contentTypesXml(sheets: WorkbookSheet[]) {
   const sheetTypes = sheets
     .map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`)
     .join('')
-  const jpgType = hasJpg ? '<Default Extension="jpg" ContentType="image/jpeg"/>' : ''
-  const drawingType = hasJpg ? '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : ''
-
-  return xmlHeader(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${jpgType}<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${drawingType}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>${sheetTypes}</Types>`)
+  const pngType = sheets.some(sheet => sheet.image) ? '<Default Extension="png" ContentType="image/png"/>' : ''
+  const drawingTypes = sheets.map((sheet, index) => sheet.image ? `<Override PartName="/xl/drawings/drawing${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>` : '').join('')
+  return xmlHeader(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${pngType}<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${drawingTypes}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>${sheetTypes}</Types>`)
 }
 
 function rootRelsXml() {
@@ -167,42 +173,43 @@ function stylesXml() {
   return xmlHeader(`
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="8"><numFmt numFmtId="164" formatCode="_(&quot;$&quot;* #,##0.00_);_(&quot;$&quot;* (#,##0.00);_(&quot;$&quot;* &quot;-&quot;??_);_(@_)"/><numFmt numFmtId="165" formatCode="+&quot;$&quot;#,##0.00;-&quot;$&quot;#,##0.00;&quot;$&quot;0.00"/><numFmt numFmtId="166" formatCode="&quot;$&quot;#,##0.00;-&quot;$&quot;#,##0.00;&quot;$&quot;0.00"/><numFmt numFmtId="167" formatCode=";;;"/><numFmt numFmtId="168" formatCode="&quot;Committed: &quot;0.0%"/><numFmt numFmtId="169" formatCode="&quot;Available: &quot;0.0%"/><numFmt numFmtId="170" formatCode="&quot;Funded Purchase Actions: &quot;#,##0"/><numFmt numFmtId="171" formatCode="&quot;Report Date: &quot;mmm d, yyyy"/></numFmts>
-  <fonts count="15">
+  <fonts count="16">
     <font><sz val="11"/><name val="Calibri"/></font>
     <font><b/><sz val="11"/><name val="Arial"/></font>
     <font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>
     <font><b/><sz val="12"/><name val="Calibri"/></font>
-    <font><b/><sz val="11"/><color rgb="FF06163D"/><name val="Arial"/></font>
-    <font><b/><sz val="18"/><color rgb="FF06163D"/><name val="Arial"/></font>
+    <font><b/><sz val="11"/><color rgb="FF052E61"/><name val="Arial"/></font>
+    <font><b/><sz val="18"/><color rgb="FF052E61"/><name val="Arial"/></font>
     <font><sz val="11"/><color rgb="FF566779"/><name val="Arial"/></font>
     <font><b/><sz val="20"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>
-    <font><b/><sz val="22"/><color rgb="FF06163D"/><name val="Calibri"/></font>
-    <font><b/><sz val="20"/><color rgb="FF06163D"/><name val="Calibri"/></font>
-    <font><b/><sz val="20"/><color rgb="FF24634A"/><name val="Calibri"/></font>
+    <font><b/><sz val="22"/><color rgb="FF052E61"/><name val="Calibri"/></font>
+    <font><b/><sz val="20"/><color rgb="FF052E61"/><name val="Calibri"/></font>
+    <font><b/><sz val="20"/><color rgb="FF052E61"/><name val="Calibri"/></font>
     <font><sz val="11"/><color rgb="FF536072"/><name val="Calibri"/></font>
-    <font><b/><sz val="11"/><color rgb="FF06163D"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF052E61"/><name val="Calibri"/></font>
     <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
-    <font><b/><sz val="12"/><color rgb="FF06163D"/><name val="Calibri"/></font>
+    <font><b/><sz val="12"/><color rgb="FF052E61"/><name val="Calibri"/></font>
+    <font><b/><sz val="20"/><color rgb="FF000000"/><name val="Arial"/></font>
   </fonts>
   <fills count="10">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FF06163D"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF052E61"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFF8FBFF"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFDFF5E7"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFDDEBFF"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFF1C7"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFE3C2"/><bgColor indexed="64"/></patternFill></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFD6D6"/><bgColor indexed="64"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFE9EEF5"/><bgColor indexed="64"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFF2F5F7"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
   <borders count="3">
     <border/>
     <border><left style="thin"><color rgb="FFD8DEE8"/></left><right style="thin"><color rgb="FFD8DEE8"/></right><top style="thin"><color rgb="FFD8DEE8"/></top><bottom style="thin"><color rgb="FFD8DEE8"/></bottom></border>
-    <border><left style="medium"><color rgb="FF06163D"/></left><right style="medium"><color rgb="FF06163D"/></right><top style="medium"><color rgb="FF06163D"/></top><bottom style="medium"><color rgb="FF06163D"/></bottom></border>
+    <border><left style="medium"><color rgb="FF052E61"/></left><right style="medium"><color rgb="FF052E61"/></right><top style="medium"><color rgb="FF052E61"/></top><bottom style="medium"><color rgb="FF052E61"/></bottom></border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="66">
+  <cellXfs count="72">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
@@ -255,8 +262,8 @@ function stylesXml() {
     <xf numFmtId="0" fontId="11" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="12" fillId="9" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="166" fontId="9" fillId="9" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-    <xf numFmtId="0" fontId="12" fillId="4" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
-    <xf numFmtId="166" fontId="10" fillId="4" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="13" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="166" fontId="7" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
     <xf numFmtId="0" fontId="14" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="167" fontId="0" fillId="9" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
     <xf numFmtId="168" fontId="11" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
@@ -269,8 +276,31 @@ function stylesXml() {
     <xf numFmtId="0" fontId="12" fillId="5" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="12" fillId="4" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="171" fontId="11" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="15" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="8" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="12" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="12" fillId="9" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="13" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="166" fontId="13" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
   </cellXfs>
 </styleSheet>`.replace(/\n\s*/g, ''))
+}
+
+async function fetchCronosLogo() {
+  const response = await fetch('/cronos-report-mark.png')
+  if (!response.ok) throw new Error('The Cronos logo could not be loaded. Refresh and retry the report.')
+  return await response.arrayBuffer()
+}
+function sheetDrawingRelsXml(index: number) {
+  return xmlHeader(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${index}.xml"/></Relationships>`)
+}
+function drawingRelsXml() {
+  return xmlHeader('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/cronos-report-mark.png"/></Relationships>')
+}
+function drawingXml(sheet: WorkbookSheet) {
+  const logo = sheet.logo!
+  const y = (logo.offsetY ?? 3) * 9525
+  return xmlHeader(`<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>${logo.column}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${logo.row}</xdr:row><xdr:rowOff>${y}</xdr:rowOff></xdr:from><xdr:to><xdr:col>${logo.column + logo.columns}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${logo.row}</xdr:row><xdr:rowOff>${y + logo.height * 9525}</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Cronos Logo"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${logo.width * 9525}" cy="${logo.height * 9525}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>`)
 }
 
 function appXml() {

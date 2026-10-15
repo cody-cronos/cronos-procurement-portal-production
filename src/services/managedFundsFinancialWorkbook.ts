@@ -17,20 +17,22 @@ function rowHeights(rows: WorkbookCell[][], widths: number[]) {
 function reportHeader(report: ManagedFundsFinancialReport, title: string, end: string) {
   const project = `${report.projectNumber} — ${report.projectName}`
   return {
-    rows: [[text('CRONOS LLC', 47)], [text(title, 48)], [], [text('Project: ' + project, 49)],
+    rows: [['', text(title, 67)], [], [text('CRONOS', 66)], [text('Project: ' + project, 49)],
       [text(`Customer: ${report.customer}  ·  Report Date: ${report.generatedAt.slice(0, 10)}  ·  USD`, 49)]],
-    merges: [`A1:${end}1`, `A2:${end}3`, `A4:${end}4`, `A5:${end}5`],
-    rowHeights: { 1: 22, 2: 30, 3: 14, 4: Math.max(26, Math.ceil(project.length / 95) * 14 + 10), 5: 26, 6: 32 },
+    merges: [`B1:${end}3`, `A4:${end}4`, `A5:${end}5`],
+    image: 'cronosLogo' as const,
+    logo: { column: 0, row: 0, columns: 1, width: 117, height: 72, offsetY: 4 },
+    rowHeights: { 1: 60, 2: 4, 3: 24, 4: Math.max(26, Math.ceil(project.length / 95) * 14 + 10), 5: 26, 6: 32 },
   }
 }
 
 export function managedFundsFinancialSheets(report: ManagedFundsFinancialReport): WorkbookSheet[] {
   validateManagedFundsFinancialReport(report)
-  const widths = [12, 47, 27, 19, 23]
+  const widths = [16, 47, 27, 19, 23]
   const actions = report.actions.map((action, index) => {
     const style = index % 2 ? 40 : 39
     const status = action.status === 'Received' ? 'Processing' : action.status
-    const statusStyle = status === 'Delivered' ? 64 : status === 'In Transit' ? 63 : 62
+    const statusStyle = index % 2 ? 69 : 68
     return [text(action.actionNumber, style), text(action.description, style),
       text(action.purchaseOrderNumbers, style), text(status, statusStyle), money(action.committed, index % 2 ? 42 : 41)]
   })
@@ -40,8 +42,8 @@ export function managedFundsFinancialSheets(report: ManagedFundsFinancialReport)
   const project = `Project: ${report.projectNumber} — ${report.projectName}`
   const overviewRows: WorkbookCell[][] = Array.from({ length: 20 }, () => [])
   const put = (row: number, column: number, cell: WorkbookCell) => { overviewRows[row - 1][column - 1] = cell }
-  put(2, 2, text('CRONOS LLC', 47))
-  put(3, 2, text('MANAGED FUNDS REPORT', 48))
+  put(3, 2, text('CRONOS', 66))
+  put(2, 6, text('MANAGED FUNDS REPORT', 67))
   put(5, 2, text('Customer: ' + report.customer, 49))
   put(6, 2, text(project, 49))
   put(7, 2, { value: dateSerial(report.generatedAt), style: 65 })
@@ -60,19 +62,20 @@ export function managedFundsFinancialSheets(report: ManagedFundsFinancialReport)
   put(19, 2, { formula: actions.length ? `COUNTA('Funded Purchases'!A7:A${lastAction})` : '0', value: actions.length, style: 58 })
   const overview: WorkbookSheet = {
     name: 'Funding Overview', rows: overviewRows, showGridLines: false, selected: true, zoomScale: 95,
-    columnWidths: [2, 12, 12, 12, 2, 12, 12, 12, 2, 12, 12, 12, 2],
-    merges: ['B2:L2', 'B3:L4', 'B5:L5', 'B6:L6', 'B7:H7', 'J7:L7', 'B9:D9', 'F9:H9', 'J9:L9', 'B10:D12', 'F10:H12', 'J10:L12',
+    columnWidths: [2, 9, 18, 9, 2, 12, 12, 12, 2, 12, 12, 12, 2],
+    image: 'cronosLogo', logo: { column: 2, row: 1, columns: 1, width: 131, height: 81 },
+    merges: ['B3:D3', 'F2:L3', 'B5:L5', 'B6:L6', 'B7:H7', 'J7:L7', 'B9:D9', 'F9:H9', 'J9:L9', 'B10:D12', 'F10:H12', 'J10:L12',
       'B14:L14', 'B15:L16', 'B17:F17', 'H17:L17', 'B19:L19'],
-    rowHeights: { 1: 12, 2: 24, 3: 28, 4: 18, 5: 24, 6: Math.max(28, Math.ceil(project.length / 100) * 14 + 10), 7: 24, 8: 14,
+    rowHeights: { 1: 12, 2: 67, 3: 26, 4: 12, 5: 24, 6: Math.max(28, Math.ceil(project.length / 100) * 14 + 10), 7: 24, 8: 14,
       9: 26, 10: 24, 11: 22, 12: 18, 13: 18, 14: 26, 15: 16, 16: 10, 17: 24, 18: 16, 19: 30, 20: 10 },
-    dataBar: { range: 'B15:L16', color: '06163D', showValue: false }, landscape: true, fitToHeight: 1,
+    dataBar: { range: 'B15:L16', color: '052E61', showValue: false }, landscape: true, fitToHeight: 1,
     printArea: 'A1:M20', reportTitle: `${report.projectNumber} | Managed Funds Report`,
   }
   const title = reportHeader(report, 'FUNDED PURCHASES', 'E')
   return [overview, {
     name: 'Funded Purchases', ...title, showGridLines: false, zoomScale: 95, landscape: true, reportTitle: `${report.projectNumber} | Funded Purchases`,
     rows: [...title.rows, header(['Action', 'Purchase Description', 'PO Number', 'Status', 'Customer Amount']), ...actions,
-      [text('TOTAL FUNDS COMMITTED', 60), '', '', '', { formula: actions.length ? `ROUND(SUM(E7:E${lastAction}),2)` : '0', value: committed, style: 61 }]],
+      [text('TOTAL FUNDS COMMITTED', 70), { value: '', style: 70 }, { value: '', style: 70 }, { value: '', style: 70 }, { formula: actions.length ? `ROUND(SUM(E7:E${lastAction}),2)` : '0', value: committed, style: 71 }]],
     columnWidths: widths, freezePane: { rows: 6 }, autoFilter: `A6:E${Math.max(6, lastAction)}`, printTitleRows: '1:6', printArea: `A1:E${totalRow}`,
     merges: [...title.merges, `A${totalRow}:D${totalRow}`], rowHeights: { ...title.rowHeights, ...rowHeights(actions, widths), [totalRow]: 34 },
   }]
@@ -85,7 +88,7 @@ export function managedFundsEquipmentSheet(report: ManagedFundsFinancialReport, 
   const lines = report.lines.filter(line => !actionNumber || line.actionNumber === actionNumber)
   if (!lines.length) throw new Error('No supported customer-approved equipment details are available for this selection.')
   const title = reportHeader(report, 'DETAILED EQUIPMENT LIST', 'G')
-  const widths = [12, 25, 23, 47, 12, 24, 25]
+  const widths = [16, 25, 23, 47, 12, 24, 25]
   const details = lines.map((line, index) => {
     const style = index % 2 ? 40 : 39, numericStyle = index % 2 ? 42 : 41, row = index + 7
     return [text(line.actionNumber, style), text(line.partNumber, style), text(line.manufacturer, style), text(line.description, style),
