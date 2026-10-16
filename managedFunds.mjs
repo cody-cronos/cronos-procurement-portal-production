@@ -2,7 +2,7 @@
 export const ACTION_TYPES = ['Purchase Material', 'Direct Expense / Pass-Through', 'Create Customer Invoice', 'Credit / Adjustment', 'Funding Modification']
 export const ACTION_STATUSES = ['Draft', 'Pending Approval', 'Approved', 'In Progress', 'Complete', 'Cancelled']
 export const BILLING_STATUSES = ['Not Ready to Bill', 'Ready to Bill', 'Draft Invoice', 'Invoiced', 'Paid', 'Credited']
-const ordinary = ['view', 'create', 'edit', 'issue_po', 'expense', 'invoice', 'cancel']
+const ordinary = ['view', 'create', 'edit', 'approve', 'issue_po', 'expense', 'invoice', 'cancel']
 export const MF_PERMISSIONS = { admin: ['*'], procurement: ordinary, sales: ['view', 'create', 'edit', 'invoice'], engineering: ['view'] }
 export function canManageFunds(actor, permission) {
   const role = String(actor?.role || '').toLowerCase().replace('procurement team', 'procurement')
