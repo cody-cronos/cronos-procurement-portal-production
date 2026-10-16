@@ -14,7 +14,7 @@ function create(state,type='Purchase Material',description='Network equipment',b
   const next=run(state,'create',{type,description,authorizedAmount:cents(bill),estimatedCost:cents(cost),billAmount:cents(bill),requestDate:'2026-09-14',requestor:'Customer',vendors:['Vendor A','Vendor B']},undefined,buyer)
   return [next,next.actions.at(-1).id]
 }
-function approved(state,id,amount) { return run(state,'approve',{commitment:cents(amount),reason:'Customer authorization verified'},id) }
+function approved(state,id,amount) { return run(state,'approve',{commitment:cents(amount),reason:'Customer authorization verified'},id,buyer) }
 
 test('complete Managed Funds material, expense, consolidated billing, credits and modification workflow',()=>{
   let {state,project}=initializeManagedFunds(base(),admin)
@@ -22,7 +22,7 @@ test('complete Managed Funds material, expense, consolidated billing, credits an
   let id; [state,id]=create(state); state=approved(state,id,100_000)
   const lines=['Vendor A','Vendor B'].map((vendor,index)=>({id:`l${index}`,clin:String(index+1),partNumber:`PART-${index}`,manufacturer:'Cisco',description:'Network equipment',quantity:1,unitCost:index?40_000:30_000,markupPercent:25,vendor,quoteNumber:`VQ-${index}`,leadTime:'2 weeks',approved:true}))
   const quote={id:'q1',actionId:id,quoteNumber:'Q-26-184',projectId:project.id,projectNumber:project.projectNumber,projectName:project.projectName,customer:project.customer,status:'Customer Approved',createdAt:'2026-09-14',lines}
-  ;({state,project}=reconcileManagedProject(state,project,{...project,quotes:[quote]},admin))
+  ;({state,project}=reconcileManagedProject(state,project,{...project,quotes:[quote]},{id:'other-buyer',name:'Other Procurement Member',role:'Procurement Team'}))
   const pos=generateVendorPurchaseOrders(lines,project.projectNumber).map(p=>({...p,quoteId:quote.id,actionId:id}))
   assert.equal(pos.length,2)
   ;({state,project}=reconcileManagedProject(state,project,{...project,purchaseOrders:pos},buyer))
@@ -72,14 +72,18 @@ test('complete Managed Funds material, expense, consolidated billing, credits an
 test('over-commitment and funding decreases are controlled, including mandatory override explanations',()=>{
   let {state}=initializeManagedFunds(base(),admin);let id;[state,id]=create(state,'Purchase Material','Over budget',1_100_000)
   assert.throws(()=>approved(state,id,1_100_000),e=>e.message==='Insufficient Available Funding'&&e.details.projectedRemainingBalance===cents(-100_000))
-  assert.throws(()=>run(state,'approve',{commitment:cents(1_100_000),reason:'Requested',overrideReason:'Management authorized'},id,buyer),/Permission/)
+  assert.throws(()=>run(state,'approve',{commitment:cents(1_100_000),reason:'Requested',overrideReason:'Management authorized'},id,buyer),e=>e.status===409&&e.message==='Insufficient Available Funding')
   state=run(state,'approve',{commitment:cents(1_100_000),reason:'Approved',overrideReason:'Management funding exception 27'},id)
   assert.ok(state.audit.some(a=>a.operation==='Funding limit override'&&a.reason==='Management funding exception 27'))
   state=run(state,'create',{type:'Funding Modification',description:'Decrease'})
   assert.throws(()=>run(state,'funding',{amount:cents(-100),reference:'MOD',reason:'Decrease'},state.actions.at(-1).id),/Insufficient/)
 })
-test('permissions distinguish ordinary work from financial approval, funding, credits and overrides',()=>{
-  for(const role of ['engineering','sales','procurement']) for(const p of ['approve','funding','adjust','override']) assert.equal(canManageFunds({id:'u',role},p),false)
+test('all procurement members can approve and issue POs while other financial permissions remain restricted',()=>{
+  for(const role of ['engineering','sales']) for(const p of ['approve','funding','adjust','override']) assert.equal(canManageFunds({id:'u',role},p),false)
+  for(const role of ['procurement','Procurement Team']) {
+    for(const permission of ['approve','issue_po']) assert.equal(canManageFunds({id:'u',role},permission),true)
+    for(const permission of ['funding','adjust','override']) assert.equal(canManageFunds({id:'u',role},permission),false)
+  }
   assert.equal(canManageFunds(buyer,'expense'),true);assert.equal(canManageFunds({id:'sales',role:'sales'},'invoice'),true);assert.equal(canManageFunds({id:'sales',role:'sales'},'issue_po'),false)
   assert.equal(canManageFunds({...buyer,permissions:['atlas.managed_funds.approve']},'approve'),true)
 })
