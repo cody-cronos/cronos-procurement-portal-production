@@ -213,8 +213,8 @@ export function applyManagedFundsCommand(source, command, actor, options = {}) {
       post(state, ctx, { kind: 'Cancellation', actionId: action.id, committed: -t.committed, reason: required(input.reason, 'Cancellation reason') }); action.status = 'Cancelled'; break
     }
     case 'expense': {
-      requirePermission(actor, 'expense'); active()
-      if (!['Approved', 'In Progress'].includes(action.status) || !['Purchase Material', 'Direct Expense / Pass-Through'].includes(action.type)) fail('Approve the material or expense Action before recording cost.')
+      requirePermission(actor, 'expense')
+      if (!action || !['Approved', 'In Progress', 'Complete'].includes(action.status) || !['Purchase Material', 'Direct Expense / Pass-Through'].includes(action.type)) fail('Approve the material or expense Action before recording cost.')
       const cost = amount(input.actualCost); if (!cost) fail('Actual cost must be greater than zero.')
       const vendor = required(input.vendor, 'Vendor'); const reference = required(input.vendorInvoiceNumber, 'Vendor invoice number')
       if (state.transactions.some(t => t.kind === 'Expense' && t.vendor?.toLowerCase() === vendor.toLowerCase() && t.reference?.toLowerCase() === reference.toLowerCase())) fail('This vendor invoice is already recorded. Use an adjustment for corrections.', 409)
@@ -223,7 +223,8 @@ export function applyManagedFundsCommand(source, command, actor, options = {}) {
       if (t.actualCost + cost > t.committed) fail('Incurred cost exceeds the Action commitment. Increase the authorized amount and approve the additional commitment first.',409)
       if (bill > t.billAmount) fail('Update the Action bill amount before recording this expense.')
       post(state, ctx, { kind: 'Expense', actionId: action.id, actualCost: cost, customerBillAmount: bill, vendor, reference, expenseDate: date(input.expenseDate), description: required(input.description, 'Expense description'), documentId: input.documentId || '', reason: String(input.notes || '') })
-      action.status = 'In Progress'; action.vendors = [...new Set([...action.vendors, vendor])]; break
+      if (action.status !== 'Complete') action.status = 'In Progress'
+      action.vendors = [...new Set([...action.vendors, vendor])]; break
     }
     case 'ready': {
       requirePermission(actor, 'invoice'); if (!action || !['Approved', 'In Progress', 'Complete'].includes(action.status)) fail('Approve the Action before billing.'); action.readyToBill = Boolean(input.ready); break

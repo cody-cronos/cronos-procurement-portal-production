@@ -55,8 +55,25 @@ test('real PostgreSQL migration, atomic commit, permissions, history protection,
     state=applyManagedFundsCommand(state,{id:'issue',type:'issue_invoice',input:{invoiceId:state.invoices[0].id}},actor)
     await commit(project,project,state,3)
     assert.equal(Number((await db.query("select sum((data->>'invoiced')::bigint) as invoiced from atlas_managed_funds_transactions")).rows[0].invoiced),10000)
+    // Persist completion before a late vendor invoice; neither posting reopens it.
+    state=(await db.query('select state from atlas_managed_funds')).rows[0].state
+    project=(await db.query("select data from app_records where record_type='projects'")).rows[0].data.find(p=>p.id==='legacy1')
+    state=applyManagedFundsCommand(state,{id:'late-create',type:'create',input:{type:'Direct Expense / Pass-Through',description:'Completed deposit',authorizedAmount:50000,billAmount:50000}},actor)
+    const lateId=state.actions.at(-1).id
+    state=applyManagedFundsCommand(state,{id:'late-approve',type:'approve',actionId:lateId,input:{commitment:50000,reason:'Customer approved'}},actor)
+    state=applyManagedFundsCommand(state,{id:'late-complete',type:'status',actionId:lateId,input:{status:'Complete'}},actor)
+    await commit(project,project,state,4)
+    state=(await db.query('select state from atlas_managed_funds')).rows[0].state
+    project=(await db.query("select data from app_records where record_type='projects'")).rows[0].data.find(p=>p.id==='legacy1')
+    const history=structuredClone(state.transactions)
+    state=applyManagedFundsCommand(state,{id:'late-cost',type:'expense',actionId:lateId,input:{vendor:'Supplier',vendorInvoiceNumber:'FINAL-1',description:'Final deposit invoice',expenseDate:'2026-10-28',actualCost:45000,billAmount:50000}},{id:'buyer',role:'procurement'})
+    await commit(project,project,state,5)
+    const persisted=(await db.query('select state from atlas_managed_funds')).rows[0].state
+    assert.equal(persisted.actions.find(a=>a.id===lateId).status,'Complete')
+    assert.equal(persisted.transactions.at(-1).actualCost,45000)
+    assert.deepEqual(persisted.transactions.slice(0,-1),history)
     await db.exec(migration)
-    assert.equal((await db.query('select revision from atlas_managed_funds')).rows[0].revision,4)
+    assert.equal((await db.query('select revision from atlas_managed_funds')).rows[0].revision,6)
     await db.exec(readFileSync(new URL('../../migrations/20260914_managed_funds_rollback.sql',import.meta.url),'utf8'))
     assert.equal((await db.query("select data from app_records where record_type='projects'")).rows[0].data.find(p=>p.id==='legacy1').projectType,'Managed Funds')
     assert.equal((await db.query('select count(*) as n from atlas_managed_funds_legacy_backups')).rows[0].n,1)
