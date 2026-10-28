@@ -200,3 +200,28 @@ test('upload uses a private project/action storage path, persists metadata, and 
   assert.equal(result.status,201);assert.equal(repo.s.documents.length,1);assert.ok(uploaded[0].startsWith(`project1/${id}/`))
   assert.equal((await api(repo,{revision:2,command:command('document',{name:'forged',storagePath:`project1/${id}/fake.pdf`},id)})).status,400)
 })
+
+test('completed material and expense actions accept late costs without reopening or changing customer balances',()=>{
+  for (const type of ['Purchase Material','Direct Expense / Pass-Through']) {
+    let {state}=initializeManagedFunds(base(),admin),id
+    ;[state,id]=create(state,type,'Completed work',100,80)
+    state=approved(state,id,100)
+    state=run(state,'status',{status:'Complete'},id)
+    const before=structuredClone(state), input={vendor:'Vendor A',vendorInvoiceNumber:'LATE-1',description:'Final vendor invoice',expenseDate:'2026-10-28',actualCost:cents(60),billAmount:cents(100)}
+    const cmd=command('expense',input,id)
+    state=apply(state,cmd,buyer)
+    assert.equal(state.actions.find(a=>a.id===id).status,'Complete')
+    assert.deepEqual(state.transactions.slice(0,-1),before.transactions)
+    assert.deepEqual(apply(state,cmd,buyer),state,'retry does not double-post')
+    assert.equal(state.audit.at(-1).previous.status,'Complete')
+    assert.equal(state.audit.at(-1).next.status,'Complete')
+    assert.equal(actionFinancials(state,id).actualCost,cents(60))
+    for(const field of ['authorized','committed','billAmount','invoiced','paid']) assert.equal(financialSummary(state)[field],financialSummary(before)[field],field)
+    assert.throws(()=>run(state,'expense',input,id,buyer),/already recorded/)
+    assert.throws(()=>run(state,'expense',{...input,vendorInvoiceNumber:'OVER',actualCost:cents(41)},id,buyer),/exceeds the Action commitment/)
+    assert.throws(()=>run(state,'expense',{...input,vendorInvoiceNumber:'NO'},id,{id:'viewer',role:'viewer'}),/Permission required/)
+    assert.throws(()=>run({...before,actions:before.actions.map(a=>({...a,status:'Cancelled'}))},'expense',input,id,buyer),/Approve/)
+    assert.deepEqual(before.transactions,state.transactions.slice(0,-1))
+  }
+})
+
